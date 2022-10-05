@@ -1,32 +1,34 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: cluster-git
+  name: multi-cluster-application-set
+  namespace: argocd
 spec:
   generators:
-    # matrix 'parent' generator
-    - matrix:
-        generators:
-          # git generator, 'child' #1
-          - git:
-              repoURL: https://github.com/argoproj/argo-cd.git
-              revision: HEAD
-              directories:
-                - path: applicationset/examples/matrix/cluster-addons/*
-          # cluster generator, 'child' #2
-          - clusters:
-              selector:
-                matchLabels:
-                  argocd.argoproj.io/secret-type: cluster
-  template:
+  - clusters: {} # Automatically use all clusters defined within Argo CD
+  template:      
     metadata:
-      name: '{{path.basename}}-{{name}}'
+      name: '{{name}}-billing-app'
     spec:
-      project: '{{metadata.labels.environment}}'
+      # The project the application belongs to.
+      project: default
+
+      # Source of the application manifests
       source:
-        repoURL: https://github.com/argoproj/argo-cd.git
+        repoURL: https://github.com/codefresh-contrib/gitops-cert-level-2-examples.git
         targetRevision: HEAD
-        path: '{{path}}'
+        path: ./application-sets/manifests
+      
+      # Destination cluster and namespace to deploy the application
       destination:
         server: '{{server}}'
-        namespace: '{{path.basename}}'
+        namespace: billing
+
+      # Sync policy
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true  
+        automated: # automated sync by default retries failed attempts 5 times with following delays between attempts ( 5s, 10s, 20s, 40s, 80s ); retry controlled using `retry` field.
+          prune: true # Specifies if resources should be pruned during auto-syncing ( false by default ).
+          selfHeal: true # Specifies if partial app sync should be executed when resources are changed only in target Kubernetes cluster and no git change detected ( false by default ).
+      
